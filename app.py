@@ -35,6 +35,8 @@ if "selected_deck_ids" not in st.session_state:
     st.session_state.selected_deck_ids = []
 if "processed_uploads" not in st.session_state:
     st.session_state.processed_uploads = set()
+if "cite_store" not in st.session_state:
+    st.session_state.cite_store = {}  # "[Title, Slide N]" → (title, slide_num, excerpt)
 
 # ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -109,6 +111,63 @@ st.markdown("""
     border-color: #4a90d9 !important;
 }
 
+/* Superscript citation markers with hover tooltip */
+.cite {
+    display: inline-block;
+    font-size: 0.65em;
+    vertical-align: super;
+    color: #63b3ed;
+    cursor: help;
+    position: relative;
+    margin: 0 1px;
+    font-weight: 700;
+    line-height: 1;
+    border-bottom: 1px dotted #4a90d9;
+}
+.cite::before {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 400;
+    width: 300px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    z-index: 9999;
+    border: 1px solid #30363d;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+}
+.cite::after {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #30363d;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    pointer-events: none;
+}
+.cite:hover::before,
+.cite:hover::after {
+    visibility: visible;
+    opacity: 1;
+}
+.assistant-msg { overflow: visible; }
+
 /* Header */
 .app-header {
     display: flex;
@@ -126,6 +185,42 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ── Citation rendering ────────────────────────────────────────────────────────
+import re as _re
+
+_CITE_RE = _re.compile(r'\[([^\[\]\n]+?),\s*[Ss]lide\s*(\d+)\]')
+
+def _tip_escape(s: str) -> str:
+    return s.replace('"', "'").replace("\n", "&#10;").replace("\r", "")
+
+def render_citations(text: str) -> str:
+    try:
+        store = st.session_state.get("cite_store", {})
+        seen: dict = {}
+        counter = [0]
+
+        def _replace(m):
+            full = m.group(0)
+            dname = m.group(1).strip()
+            snum  = m.group(2)
+            if full not in seen:
+                counter[0] += 1
+                seen[full] = counter[0]
+            n = seen[full]
+            entry = store.get(full)
+            if entry:
+                title, slide, excerpt = entry
+                short = excerpt[:240] + ("…" if len(excerpt) > 240 else "")
+                tip = _tip_escape(f"{title}  ·  Slide {slide}\n\n{short}")
+            else:
+                tip = _tip_escape(f"{dname}  ·  Slide {snum}")
+            return f'<span class="cite" data-tip="{tip}">[{n}]</span>'
+
+        return _CITE_RE.sub(_replace, text)
+    except Exception:
+        return text  # fall back to plain text on any error
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -241,6 +336,7 @@ with st.sidebar:
                 {"role": m["role"], "content": m["content"]} for m in msgs
             ]
             st.session_state.selected_deck_ids = get_session_sources(sid)
+            st.session_state.cite_store = {}
             st.rerun()
 
 
@@ -337,7 +433,7 @@ else:
                 )
             else:
                 st.markdown(
-                    f'<div class="assistant-msg">{msg["content"]}</div>',
+                    f'<div class="assistant-msg">{render_citations(msg["content"])}</div>',
                     unsafe_allow_html=True,
                 )
 
@@ -388,6 +484,12 @@ else:
             with st.spinner("Searching slides and generating answer…"):
                 try:
                     response_text, chunks = answer(question, session_id)
+
+                    for c in chunks:
+                        title = deck_map.get(c["deck_id"], f"Deck {c['deck_id']}")
+                        label = f"[{title}, Slide {c['slide_number']}]"
+                        st.session_state.cite_store[label] = (title, c["slide_number"], c["text"])
+
                     st.session_state.chat_history.append({"role": "user", "content": question})
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
 
