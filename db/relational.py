@@ -71,6 +71,11 @@ def get_deck(deck_id: int) -> Optional[sqlite3.Row]:
         return conn.execute("SELECT * FROM decks WHERE id = ?", (deck_id,)).fetchone()
 
 
+def update_deck(deck_id: int, title: str) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE decks SET title = ? WHERE id = ?", (title, deck_id))
+
+
 def delete_deck(deck_id: int) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM slides WHERE deck_id = ?", (deck_id,))
