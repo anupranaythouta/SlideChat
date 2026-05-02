@@ -23,6 +23,7 @@ const App = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [drawer, setDrawer] = useState(null); // { deckId, slideN }
   const [searchOpen, setSearchOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [density, setDensity] = useState('comfortable');
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
@@ -41,7 +42,7 @@ const App = () => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(true); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'u') { e.preventDefault(); setUploadOpen(true); }
-      if (e.key === 'Escape') { setSearchOpen(false); setUploadOpen(false); setDrawer(null); }
+      if (e.key === 'Escape') { setSearchOpen(false); setUploadOpen(false); setDrawer(null); setStatsOpen(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -326,6 +327,7 @@ const App = () => {
           onClear={clearMessages}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenStats={() => setStatsOpen(true)}
         />
 
         <div className="sc-main-scroll">
@@ -389,6 +391,10 @@ const App = () => {
         onClose={() => setUploadOpen(false)}
         onUploadComplete={handleUploadComplete}
       />
+
+      {statsOpen && (
+        <StatsPanel onClose={() => setStatsOpen(false)} />
+      )}
 
       {searchOpen && (
         <CommandK

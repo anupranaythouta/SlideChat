@@ -34,6 +34,7 @@ const Icons = {
   menu: <Icon path="M4 7h16M4 12h16M4 17h16" />,
   file: <Icon path="M7 3h7l5 5v13H7zM14 3v5h5" />,
   bolt: <Icon path="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />,
+  chart: <Icon path="M3 20h18M7 20V10M12 20V4M17 20v-6" />,
 };
 
 window.Icon = Icon;

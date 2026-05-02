@@ -17,6 +17,7 @@ from db.relational import (
     get_deck,
     update_deck,
     delete_deck,
+    get_stats,
     get_slides_for_deck,
     get_all_sessions,
     create_session,
@@ -268,6 +269,13 @@ def api_ask(session_id: int, body: AskBody):
         "text": response_text,
         "chunks": serialized_chunks,
     }
+
+
+# ── Stats endpoint ────────────────────────────────────────────────────────────
+
+@app.get("/api/stats")
+def api_get_stats():
+    return get_stats()
 
 
 # ── Static frontend ───────────────────────────────────────────────────────────

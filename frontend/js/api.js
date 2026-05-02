@@ -54,6 +54,9 @@ const API = (() => {
 
     // Ask
     ask: (sessionId, question) => request('POST', `/sessions/${sessionId}/ask`, { question }),
+
+    // Stats
+    getStats: () => request('GET', '/stats'),
   };
 })();
 

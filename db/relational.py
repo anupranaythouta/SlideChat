@@ -9,6 +9,7 @@ def get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -48,6 +49,18 @@ def init_db() -> None:
                 content    TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE INDEX IF NOT EXISTS idx_slides_deck_id
+                ON slides(deck_id);
+
+            CREATE INDEX IF NOT EXISTS idx_messages_session_id
+                ON messages(session_id);
+
+            CREATE INDEX IF NOT EXISTS idx_messages_role
+                ON messages(role);
+
+            CREATE INDEX IF NOT EXISTS idx_session_sources_deck_id
+                ON session_sources(deck_id);
         """)
 
 
@@ -143,6 +156,73 @@ def get_session_sources(session_id: int) -> list[int]:
             "SELECT deck_id FROM session_sources WHERE session_id = ?", (session_id,)
         ).fetchall()
         return [r["deck_id"] for r in rows]
+
+
+# --- Stats ---
+
+def get_stats() -> dict:
+    with get_conn() as conn:
+        # Query 1: Overview — subquery for avg questions per session
+        overview = conn.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM decks) as total_decks,
+                (SELECT COUNT(*) FROM sessions) as total_sessions,
+                (SELECT COUNT(*) FROM messages WHERE role = 'user') as total_questions,
+                (SELECT ROUND(AVG(q_count), 1) FROM (
+                    SELECT COUNT(*) as q_count FROM messages
+                    WHERE role = 'user' GROUP BY session_id
+                )) as avg_questions_per_session
+        """).fetchone()
+
+        # Query 2: Most queried decks — multi-table JOIN + GROUP BY
+        top_decks = conn.execute("""
+            SELECT d.id, d.title,
+                   COUNT(DISTINCT ss.session_id) as session_count,
+                   COUNT(m.id) as question_count
+            FROM decks d
+            LEFT JOIN session_sources ss ON ss.deck_id = d.id
+            LEFT JOIN messages m ON m.session_id = ss.session_id AND m.role = 'user'
+            GROUP BY d.id
+            ORDER BY question_count DESC
+        """).fetchall()
+
+        # Query 3: Most active sessions — JOIN + CASE + GROUP BY
+        top_sessions = conn.execute("""
+            SELECT s.id, s.name,
+                   COUNT(DISTINCT ss.deck_id) as deck_count,
+                   SUM(CASE WHEN m.role = 'user' THEN 1 ELSE 0 END) as question_count
+            FROM sessions s
+            LEFT JOIN messages m ON m.session_id = s.id
+            LEFT JOIN session_sources ss ON ss.session_id = s.id
+            GROUP BY s.id
+            ORDER BY question_count DESC
+            LIMIT 8
+        """).fetchall()
+
+        # Query 4: Study activity over time — GROUP BY DATE
+        activity = conn.execute("""
+            SELECT DATE(created_at) as day, COUNT(*) as questions
+            FROM messages
+            WHERE role = 'user'
+            GROUP BY DATE(created_at)
+            ORDER BY day
+        """).fetchall()
+
+        # Query 5: Unused decks — NOT EXISTS subquery
+        unused = conn.execute("""
+            SELECT id, title FROM decks
+            WHERE NOT EXISTS (
+                SELECT 1 FROM session_sources ss WHERE ss.deck_id = decks.id
+            )
+        """).fetchall()
+
+        return {
+            "overview": dict(overview),
+            "top_decks": [dict(r) for r in top_decks],
+            "top_sessions": [dict(r) for r in top_sessions],
+            "activity": [dict(r) for r in activity],
+            "unused_decks": [dict(r) for r in unused],
+        }
 
 
 # --- Messages ---

@@ -1,5 +1,5 @@
 // Chat view — composer, message list, streaming indicator, starters
-const ChatHeader = ({ session, selectedDeckCount, onOpenSearch, onExport, onClear, theme, onToggleTheme }) => (
+const ChatHeader = ({ session, selectedDeckCount, onOpenSearch, onExport, onClear, theme, onToggleTheme, onOpenStats }) => (
   <header className="sc-chat-head">
     <div className="sc-chat-head-l">
       <div className="sc-chat-title">{session?.title || 'New conversation'}</div>
@@ -14,7 +14,7 @@ const ChatHeader = ({ session, selectedDeckCount, onOpenSearch, onExport, onClea
     </div>
     <div className="sc-chat-head-r">
       <button className="sc-iconbtn" onClick={onOpenSearch} title="Search (⌘K)">{Icons.search}</button>
-      <button className="sc-iconbtn" onClick={onExport} title="Export conversation">{Icons.doc}</button>
+      <button className="sc-iconbtn" onClick={onOpenStats} title="Statistics">{Icons.chart}</button>
       <button className="sc-iconbtn" onClick={onToggleTheme} title="Toggle theme">
         {theme === 'dark' ? Icons.sun : Icons.moon}
       </button>
