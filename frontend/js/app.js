@@ -108,8 +108,9 @@ const App = () => {
       await API.renameDeck(deckId, title);
       const short = title.length <= 34 ? title : title.slice(0, 31) + '…';
       setDecks(prev => prev.map(d => d.id === deckId ? { ...d, title, short } : d));
+      showToast('Deck renamed', 'success');
     } catch (err) {
-      setError('Failed to rename deck: ' + err.message);
+      showToast('Failed to rename deck: ' + err.message, 'error');
     }
   }, []);
 
@@ -118,8 +119,9 @@ const App = () => {
     try {
       await API.renameSession(sessionId, name);
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: name } : s));
+      showToast('Session renamed', 'success');
     } catch (err) {
-      setError('Failed to rename session: ' + err.message);
+      showToast('Failed to rename session: ' + err.message, 'error');
     }
   }, []);
 
@@ -157,8 +159,9 @@ const App = () => {
         delete next[sessionId];
         return next;
       });
+      showToast('Session deleted', 'success');
     } catch (err) {
-      setError('Failed to delete session: ' + err.message);
+      showToast('Failed to delete session: ' + err.message, 'error');
     }
   }, [activeSessionId]);
 
@@ -168,8 +171,9 @@ const App = () => {
       await API.deleteDeck(deckId);
       setDecks(prev => prev.filter(d => d.id !== deckId));
       setSelectedDeckIds(prev => prev.filter(x => x !== deckId));
+      showToast('Deck deleted', 'success');
     } catch (err) {
-      setError('Failed to delete deck: ' + err.message);
+      showToast('Failed to delete deck: ' + err.message, 'error');
     }
   }, []);
 
@@ -178,6 +182,7 @@ const App = () => {
     setDecks(prev => [deck, ...prev]);
     setSelectedDeckIds(prev => [...prev, deck.id]);
     setUploadOpen(false);
+    showToast(`"${deck.title}" uploaded successfully`, 'success');
     if (activeSessionId) {
       API.setSources(activeSessionId, [...selectedDeckIds, deck.id]).catch(() => {});
     }
@@ -404,6 +409,8 @@ const App = () => {
         />
       )}
 
+      <ToastContainer />
+
       {tweaksOpen && (
         <TweaksPanel
           theme={theme}
@@ -428,7 +435,7 @@ const WelcomeView = ({ decks, onPickStarter }) => (
         </span>
       </div>
       <h1 className="sc-welcome-h1">What would you like to learn today?</h1>
-      <p className="sc-welcome-p">Ask anything — definitions, comparisons, exam focus areas. Every answer links back to the slide it came from.</p>
+      <p className="sc-welcome-p">Ask anything: definitions, comparisons, exam focus areas. Every answer links back to the slide it came from.</p>
     </div>
     <StartersRow onPick={onPickStarter} />
     {decks.length > 0 && (

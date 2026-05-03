@@ -1,6 +1,20 @@
 // Right-side slide drawer — opens when a citation is clicked
 const SlideDrawer = ({ open, deck, slideN, onClose, onNav }) => {
+  const [slideText, setSlideText] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open || !deck || !slideN) return;
+    setLoading(true);
+    setSlideText(null);
+    API.getSlideText(deck.id, slideN)
+      .then(data => setSlideText(data.text_content))
+      .catch(() => setSlideText(null))
+      .finally(() => setLoading(false));
+  }, [deck?.id, slideN, open]);
+
   if (!open || !deck) return null;
+
   const idx = deck.slides.findIndex(s => s.n === slideN);
   const slide = deck.slides[idx] || deck.slides[0];
   const prev = () => idx > 0 && onNav(deck.slides[idx - 1].n);
@@ -16,10 +30,6 @@ const SlideDrawer = ({ open, deck, slideN, onClose, onNav }) => {
         <button className="sc-iconbtn" onClick={onClose} title="Close">{Icons.x}</button>
       </div>
 
-      <div className="sc-drawer-big">
-        <SlideThumb slide={slide} deck={deck} w={640} h={360} />
-      </div>
-
       <div className="sc-drawer-controls">
         <button className="sc-btn-ghost sm" onClick={prev} disabled={idx === 0}>← Previous</button>
         <div className="sc-slide-counter">
@@ -30,21 +40,16 @@ const SlideDrawer = ({ open, deck, slideN, onClose, onNav }) => {
       </div>
 
       <div className="sc-drawer-body">
-        <div className="sc-drawer-section-h">Why this was cited</div>
-        <p className="sc-drawer-text">
-          This slide introduces the {slide.title.toLowerCase()}. The retrieval pass matched your query against the
-          heading and bullet text, with a relevance score of <span className="sc-mono">0.{82 + (slide.n % 18)}</span>.
-        </p>
-
-        <div className="sc-drawer-section-h" style={{ marginTop: 18 }}>Nearby slides</div>
-        <div className="sc-drawer-strip">
-          {deck.slides.slice(Math.max(0, idx - 2), idx + 3).map(s => (
-            <button key={s.n} className={`sc-strip-thumb ${s.n === slide.n ? 'active' : ''}`} onClick={() => onNav(s.n)}>
-              <div className="sc-strip-thumb-img"><SlideThumb slide={s} deck={deck} w={120} h={68} /></div>
-              <div className="sc-strip-thumb-n">{s.n}</div>
-            </button>
-          ))}
-        </div>
+        <div className="sc-drawer-section-h">Slide content</div>
+        {loading && (
+          <div className="sc-drawer-loading">Loading…</div>
+        )}
+        {!loading && slideText && (
+          <pre className="sc-drawer-text-content">{slideText}</pre>
+        )}
+        {!loading && !slideText && (
+          <p className="sc-drawer-empty">No text content available for this slide.</p>
+        )}
       </div>
     </div>
   );

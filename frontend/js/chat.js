@@ -64,29 +64,32 @@ const Composer = ({ onSend, disabled, value, setValue, sources }) => {
     setValue('');
   };
 
+  const noSources = sources === 0;
+
   return (
     <div className="sc-composer-wrap">
-      <div className="sc-composer">
+      <div className={`sc-composer ${noSources ? 'sc-composer-disabled' : ''}`}>
         <textarea
           ref={ref}
           className="sc-composer-input"
-          placeholder="Ask about the slides…"
+          placeholder={noSources ? 'Select a source deck in the sidebar to ask a question…' : 'Ask about the slides…'}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
           rows={1}
+          disabled={noSources}
         />
         <div className="sc-composer-row">
           <div className="sc-composer-meta">
-            <span className="sc-source-chip">
+            <span className={`sc-source-chip ${noSources ? 'sc-source-chip-none' : ''}`}>
               <span className="sc-source-dot" />
-              {sources} {sources === 1 ? 'source' : 'sources'}
+              {noSources ? 'No sources selected' : `${sources} ${sources === 1 ? 'source' : 'sources'}`}
             </span>
-            <span className="sc-composer-kbd">⏎ send · ⇧⏎ newline</span>
+            {!noSources && <span className="sc-composer-kbd">⏎ send · ⇧⏎ newline</span>}
           </div>
-          <button className="sc-send" onClick={submit} disabled={disabled || !value.trim()}>
+          <button className="sc-send" onClick={submit} disabled={disabled || !value.trim() || noSources}>
             <span>Send</span>
             <span className="sc-send-arrow">{Icons.arrowRight}</span>
           </button>

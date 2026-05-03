@@ -37,6 +37,7 @@ const API = (() => {
     },
 
     renameDeck: (deckId, title) => request('PATCH', `/decks/${deckId}`, { title }),
+    getSlideText: (deckId, slideN) => request('GET', `/decks/${deckId}/slides/${slideN}`),
     deleteDeck: (deckId) => request('DELETE', `/decks/${deckId}`),
 
     // Sessions

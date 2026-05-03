@@ -15,6 +15,7 @@ from db.relational import (
     init_db,
     get_all_decks,
     get_deck,
+    get_session,
     update_deck,
     delete_deck,
     get_stats,
@@ -26,6 +27,7 @@ from db.relational import (
     get_session_sources,
     set_session_sources,
     get_messages,
+    get_message_counts,
     save_message,
 )
 from pipeline.rag import ingest_deck, remove_deck, answer
@@ -157,6 +159,15 @@ def api_rename_deck(deck_id: int, body: DeckRename):
     return {"ok": True}
 
 
+@app.get("/api/decks/{deck_id}/slides/{slide_n}")
+def api_get_slide_text(deck_id: int, slide_n: int):
+    slides = get_slides_for_deck(deck_id)
+    slide = next((s for s in slides if s["slide_number"] == slide_n), None)
+    if not slide:
+        raise HTTPException(404, "Slide not found.")
+    return {"slide_number": slide["slide_number"], "text_content": slide["text_content"] or ""}
+
+
 @app.delete("/api/decks/{deck_id}", status_code=204)
 def api_delete_deck(deck_id: int):
     if not get_deck(deck_id):
@@ -176,23 +187,15 @@ class SessionRename(BaseModel):
 
 @app.get("/api/sessions")
 def api_get_sessions():
-    from db.relational import get_conn
     rows = get_all_sessions()
-    # Count messages per session in one query
-    with get_conn() as conn:
-        counts = conn.execute(
-            "SELECT session_id, COUNT(*) as cnt FROM messages GROUP BY session_id"
-        ).fetchall()
-    msg_counts = {r["session_id"]: r["cnt"] for r in counts}
+    msg_counts = get_message_counts()
     return [_session_to_api(r, msg_counts) for r in rows]
 
 
 @app.post("/api/sessions", status_code=201)
 def api_create_session(body: SessionCreate):
     sid = create_session(body.name)
-    from db.relational import get_conn
-    with get_conn() as conn:
-        row = conn.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
+    row = get_session(sid)
     return _session_to_api(row, {})
 
 

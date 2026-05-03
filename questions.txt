@@ -1,0 +1,4 @@
+1. What is the context windows?
+2. What if the slides contain images?
+3. How does the embeddings change
+ if slides are images?

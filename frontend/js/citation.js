@@ -1,61 +1,21 @@
-// Hoverable citation chip — shows a floating slide preview on hover
-// Adapted: cite format is "deckId:slideN" where deckId is a string ID
+// Citation chip — click to open the slide drawer
 const CiteChip = ({ cite, decks, onOpen }) => {
   const [deckId, slideStr] = cite.split(':');
   const slideN = parseInt(slideStr, 10);
   const deck = decks.find(d => d.id === deckId);
-  const slide = deck?.slides?.find(s => s.n === slideN)
-    || (deck ? { n: slideN, title: `Slide ${slideN}`, kind: 'concept' } : null);
-  const ref = React.useRef(null);
-  const [hover, setHover] = React.useState(false);
-  const [pos, setPos] = React.useState({ top: 0, left: 0 });
-
-  React.useEffect(() => {
-    if (!hover || !ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    const previewW = 320;
-    const previewH = 220;
-    const pad = 10;
-    let left = r.left + r.width / 2 - previewW / 2;
-    left = Math.max(pad, Math.min(window.innerWidth - previewW - pad, left));
-    let top = r.top - previewH - 10;
-    if (top < pad) top = r.bottom + 10;
-    setPos({ top, left });
-  }, [hover]);
 
   if (!deck) return null;
 
   return (
-    <>
-      <span
-        ref={ref}
-        className="sc-cite"
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onClick={() => onOpen(deckId, slideN)}
-        style={{ '--deck-color': deck.color }}
-      >
-        <span className="sc-cite-dot" />
-        <span className="sc-cite-label">{deck.short}</span>
-        <span className="sc-cite-n">· {slideN}</span>
-      </span>
-      {hover && ReactDOM.createPortal(
-        <div className="sc-cite-preview" style={{ top: pos.top, left: pos.left }}>
-          <div className="sc-cite-preview-thumb">
-            {slide && <SlideThumb slide={slide} deck={deck} w={320} h={180} />}
-          </div>
-          <div className="sc-cite-preview-body">
-            <div className="sc-cite-preview-deck">{deck.short}</div>
-            <div className="sc-cite-preview-title">{slide?.title || `Slide ${slideN}`}</div>
-            <div className="sc-cite-preview-foot">
-              <span className="sc-cite-preview-n">slide {slideN} of {deck.pages}</span>
-              <span className="sc-cite-preview-open">Click to open {Icons.arrowRight}</span>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
+    <span
+      className="sc-cite"
+      onClick={() => onOpen(deckId, slideN)}
+      style={{ '--deck-color': deck.color }}
+    >
+      <span className="sc-cite-dot" />
+      <span className="sc-cite-label">{deck.short}</span>
+      <span className="sc-cite-n">· {slideN}</span>
+    </span>
   );
 };
 
