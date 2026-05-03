@@ -6,11 +6,11 @@ A RAG-based lecture slide study assistant. Upload PDF or PPTX slide decks, then 
 
 ## Features
 
-- Upload PDF / PPTX slide decks (extracted text, per-slide)
+- Upload PDF / PPTX slide decks (text extracted per-slide, with OCR fallback for image-only slides)
 - Create chat sessions scoped to one or more decks
-- Answers cite exact slides; click a citation to read the extracted slide text
+- Answers cite exact slides; click a citation chip to read the extracted slide text
 - Rename or delete sessions and decks
-- Statistics dashboard — query patterns, deck usage, activity timeline
+- Statistics dashboard — overview counters, most-queried decks, most active sessions, daily activity timeline, unused decks
 
 ---
 
@@ -20,19 +20,30 @@ A RAG-based lecture slide study assistant. Upload PDF or PPTX slide decks, then 
 |---|---|
 | Frontend | React 18 (in-browser Babel, no build step) |
 | Backend | FastAPI + Uvicorn |
-| Relational DB | SQLite (`data/slides.db`) |
+| Relational DB | MySQL 8.0+ (`slidechat` database) |
 | Vector DB | ChromaDB (`data/chroma/`) |
+| Document Parser | Docling (PDF + PPTX) + RapidOCR (image-only slides) |
 | Embeddings | `all-MiniLM-L6-v2` (SentenceTransformers, 384-dim) |
 | LLM | Google Gemini 2.5 Flash |
 
 ---
 
-## Setup
-
-### 1. Prerequisites
+## Prerequisites
 
 - Python 3.11+
-- A Google Gemini API key ([get one here](https://aistudio.google.com/app/apikey))
+- MySQL 8.0+ running locally (or accessible via network)
+- A Google Gemini API key — [get one at Google AI Studio](https://aistudio.google.com/app/apikey)
+
+---
+
+## Setup
+
+### 1. Clone the repository
+
+```bash
+git clone <repo-url>
+cd SlideChat
+```
 
 ### 2. Create a virtual environment
 
@@ -52,17 +63,35 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment
+> **Note:** Docling downloads layout models (~1 GB) from HuggingFace on first run. On Windows, enable Developer Mode (Settings → System → Developer Mode) so HuggingFace can create symlinks in its model cache.
+
+### 4. Configure environment variables
 
 Create a `.env` file in the project root:
 
-```
-GEMINI_API_KEY=your_api_key_here
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# MySQL connection (defaults shown — change if your setup differs)
+MYSQL_HOST=localhost
+MYSQL_USER=root
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=slidechat
 ```
 
-The app reads this via `python-dotenv` on startup. Do **not** commit `.env` to git.
+Do **not** commit `.env` to git.
 
-### 5. Run the server
+### 5. Set up the database
+
+The app creates the `slidechat` database and all tables automatically on first startup — no manual SQL required. Just make sure MySQL is running and the credentials in `.env` are correct.
+
+To verify MySQL is reachable before starting:
+
+```bash
+mysql -u root -p -e "SHOW DATABASES;"
+```
+
+### 6. Run the server
 
 ```bash
 uvicorn server:app --reload
@@ -70,30 +99,67 @@ uvicorn server:app --reload
 
 Then open [http://localhost:8000](http://localhost:8000) in your browser.
 
-The database and ChromaDB collection are created automatically on first run inside `data/`.
-
 ---
 
 ## Database Schema
 
-Five SQLite tables, with foreign-key enforcement enabled on every connection (`PRAGMA foreign_keys = ON`):
+Five MySQL tables with InnoDB engine and `utf8mb4` character set:
 
 ```sql
-decks            -- uploaded slide decks (id, title, filename, uploaded_at)
-slides           -- per-slide extracted text (id, deck_id→decks, slide_number, text_content)
-sessions         -- chat sessions (id, name, created_at)
-session_sources  -- many-to-many: which decks a session can query (session_id→sessions, deck_id→decks)
-messages         -- chat history (id, session_id→sessions, role, content, created_at)
+decks (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    title       TEXT NOT NULL,
+    filename    VARCHAR(512) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+
+slides (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    deck_id      INT,              -- FK → decks(id)
+    slide_number INT NOT NULL,
+    text_content LONGTEXT,
+    FOREIGN KEY (deck_id) REFERENCES decks(id)
+)
+
+sessions (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+
+session_sources (                  -- many-to-many: sessions ↔ decks
+    session_id INT NOT NULL,       -- FK → sessions(id)
+    deck_id    INT NOT NULL,       -- FK → decks(id)
+    PRIMARY KEY (session_id, deck_id)
+)
+
+messages (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT,                -- FK → sessions(id)
+    role       ENUM('user', 'assistant'),
+    content    LONGTEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
 ```
 
-Performance indexes:
+Performance indexes (created automatically on startup):
 
 ```sql
-idx_slides_deck_id          ON slides(deck_id)
-idx_messages_session_id     ON messages(session_id)
-idx_messages_role           ON messages(role)
-idx_session_sources_deck_id ON session_sources(deck_id)
+idx_slides_deck_id       ON slides(deck_id)
+idx_messages_session_id  ON messages(session_id)
+idx_messages_role        ON messages(role)
+idx_session_sources_deck ON session_sources(deck_id)
 ```
+
+### Seed data
+
+There is no pre-loaded seed data. The app starts with an empty database.
+
+To populate it:
+1. Upload one or more PDF or PPTX files through the UI (left sidebar → upload button).
+2. Create a chat session, attach decks, and start asking questions.
+
+There are no user accounts — the app is single-user by design.
 
 ---
 
@@ -122,15 +188,15 @@ idx_session_sources_deck_id ON session_sources(deck_id)
 
 ```
 SlideChat/
-├── server.py           # FastAPI app and all route handlers
+├── server.py              # FastAPI app and all route handlers
 ├── db/
-│   └── relational.py   # SQLite schema, CRUD functions, stats queries
+│   └── relational.py      # MySQL schema, CRUD functions, stats queries
 ├── pipeline/
-│   ├── parser.py       # PDF / PPTX text extraction (pdfplumber, python-pptx)
-│   ├── embedder.py     # SentenceTransformers embedding wrapper
-│   └── rag.py          # Ingest, retrieve, and generate (ChromaDB + Gemini)
+│   ├── parser.py          # PDF / PPTX text extraction (Docling + RapidOCR)
+│   ├── embedder.py        # SentenceTransformers embedding wrapper
+│   └── rag.py             # Ingest, retrieve, and generate (ChromaDB + Gemini)
 ├── frontend/
-│   ├── index.html      # Single-page app shell; loads all scripts
+│   ├── index.html         # Single-page app shell
 │   ├── styles.css
 │   └── js/
 │       ├── api.js          # Fetch wrappers for every backend endpoint
@@ -143,11 +209,9 @@ SlideChat/
 │       ├── toast.js        # Global toast notification system
 │       └── icons.js        # SVG icon constants
 ├── data/
-│   ├── slides.db       # SQLite database (auto-created)
-│   └── chroma/         # ChromaDB persistent storage (auto-created)
+│   └── chroma/            # ChromaDB persistent storage (auto-created)
 ├── requirements.txt
-├── .env                # API key (not committed)
-└── REPORT.md           # Technical project report
+└── .env                   # API key + DB credentials (not committed)
 ```
 
 ---
@@ -156,16 +220,15 @@ SlideChat/
 
 1. **Upload a deck** — click the upload button in the left sidebar and select a PDF or PPTX file.
 2. **Create a session** — click the `+` button next to "Conversations".
-3. **Attach sources** — select which decks this session should query using the source picker in the chat header.
+3. **Attach sources** — select which decks this session should query via the source picker in the chat header.
 4. **Ask questions** — type in the composer and press Enter or click Send.
-5. **Explore citations** — click any citation chip in the answer to open the slide drawer and read the exact slide text.
+5. **Explore citations** — click any citation chip in an answer to open the slide drawer and read the exact slide text.
 6. **View stats** — click the chart icon in the top-right of the chat header.
 
 ---
 
 ## Security Notes
 
-- All SQL queries use parameterized placeholders (`?`) — no string interpolation.
-- `PRAGMA foreign_keys = ON` is set on every connection to enforce referential integrity.
+- All SQL queries use parameterized placeholders (`%s`) — no string interpolation.
 - File uploads are validated by extension (`.pdf`, `.pptx` only) before processing.
-- The API key is loaded from `.env` and never exposed to the frontend.
+- The API key and database credentials are loaded from `.env` and never exposed to the frontend.
