@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Database / vector store
+data/
+*.db
+*.sqlite3
+
+# Claude conversation files
+.claude/
+
+# PowerPoint temp lock files
+~$*.pptx
+~$*.ppt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Report drafts (local only)
+report_draft*.md

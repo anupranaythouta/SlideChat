@@ -106,6 +106,22 @@ function parseAnswerToBlocks(text, chunks) {
       continue;
     }
 
+    // Markdown table row
+    if (/^\|/.test(line)) {
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      const isSeparator = cells.every(c => /^:?-+:?$/.test(c));
+      if (!isSeparator) {
+        const last = blocks[blocks.length - 1];
+        if (last && last.type === 'table') {
+          last.rows.push(cells);
+        } else {
+          flushList();
+          blocks.push({ type: 'table', rows: [cells] });
+        }
+      }
+      continue;
+    }
+
     // Regular paragraph
     flushList();
     blocks.push({
@@ -166,6 +182,23 @@ const AnswerBlock = ({ content, decks, onOpenCite }) => {
                 </li>
               ))}
             </ol>
+          );
+        }
+        if (block.type === 'table' && block.rows.length > 0) {
+          const [head, ...body] = block.rows;
+          return (
+            <div key={i} className="sc-table-wrap">
+              <table className="sc-table">
+                <thead>
+                  <tr>{head.map((c, j) => <th key={j}>{c}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {body.map((row, j) => (
+                    <tr key={j}>{row.map((c, k) => <td key={k}>{c}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           );
         }
         return null;

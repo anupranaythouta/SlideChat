@@ -645,6 +645,36 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .sc-ul li::marker { color: var(--ink-4); }
 
+.sc-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.sc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sc-table th {
+  background: var(--bg-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.sc-table td {
+  padding: 7px 12px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
+}
+.sc-table tr:last-child td { border-bottom: none; }
+.sc-table tr:nth-child(even) td { background: var(--bg-2); }
+
 .sc-cites-inline {
   display: inline-flex;
   flex-wrap: wrap;
